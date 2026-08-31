@@ -94,7 +94,7 @@ BUILD_VERSION="${BASE_VERSION}-pr.codepanda.${STAMP}"
 unset GITHUB_REPOSITORY
 unset T3CODE_DESKTOP_UPDATE_REPOSITORY
 unset T3CODE_DESKTOP_MOCK_UPDATES
-node scripts/build-desktop-artifact.ts \
+pnpm exec node scripts/build-desktop-artifact.ts \
   --platform mac \
   --target dmg \
   --arch arm64 \
