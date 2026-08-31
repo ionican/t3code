@@ -290,6 +290,10 @@ corepack enable
 
 cd "${CANDIDATE_DIR}"
 pnpm install --frozen-lockfile
+# Electron 43 installs its binary lazily when lifecycle scripts are skipped by
+# pnpm policy. Pre-install it once so parallel test workers cannot race while
+# extracting the same Electron.app directory.
+pnpm --filter @t3tools/desktop exec install-electron
 pnpm exec vp test run \
   packages/contracts/src/orchestration.test.ts \
   apps/server/src/orchestration/decider.settled.test.ts \
