@@ -9,7 +9,13 @@ INSTALL_PATH="/Applications/T3 Code Auto.app"
 STATE_HOME="${HOME}/.t3-auto"
 BACKUP_ROOT="${HOME}/.t3-auto-backups"
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_PATH="${BASH_SOURCE[0]}"
+while [[ -L "${SCRIPT_PATH}" ]]; do
+  LINK_DIR="$(cd "$(dirname "${SCRIPT_PATH}")" && pwd)"
+  SCRIPT_PATH="$(readlink "${SCRIPT_PATH}")"
+  [[ "${SCRIPT_PATH}" = /* ]] || SCRIPT_PATH="${LINK_DIR}/${SCRIPT_PATH}"
+done
+SCRIPT_DIR="$(cd "$(dirname "${SCRIPT_PATH}")" && pwd)"
 REPO_ROOT="$(git -C "${SCRIPT_DIR}" rev-parse --show-toplevel)"
 ACTIVE_BRANCH="$(git -C "${REPO_ROOT}" branch --show-current)"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -30,6 +36,17 @@ cleanup() {
   fi
 }
 trap cleanup EXIT
+
+if [[ "${1:-}" == "--help" ]]; then
+  printf 'Usage: t3-auto-update\n'
+  printf 'Fetch upstream/main, verify a candidate build, back up T3 Code Auto, and install it.\n'
+  exit 0
+fi
+
+if [[ "$#" -ne 0 ]]; then
+  printf 't3-auto-update: unknown argument: %s\n' "$1"
+  exit 2
+fi
 
 if [[ "${ACTIVE_BRANCH}" != "${EXPECTED_BRANCH}" ]]; then
   printf 't3-auto-update: expected branch %s, found %s\n' "${EXPECTED_BRANCH}" "${ACTIVE_BRANCH:-detached}"
