@@ -1,13 +1,42 @@
 import { assert, describe, it } from "vite-plus/test";
 
 import {
+  APP_BUNDLE_ID,
+  APP_DISPLAY_NAME,
+  APP_PROTOCOL_SCHEMES,
   makeDevelopmentLauncherScript,
   resolveElectronBinaryPath,
+  resolveLauncherIdentity,
   resolveMacLauncherIconPaths,
   resolveMacLauncherPaths,
 } from "./electron-launcher.mjs";
 
 describe("electron development launcher", () => {
+  it("resolves isolated identities in both production and development", () => {
+    assert.deepEqual(resolveLauncherIdentity(false, "t3code"), {
+      displayName: "T3 Code Auto",
+      bundleId: "com.codepanda.t3code-auto",
+      protocolSchemes: ["t3code-auto"],
+    });
+    assert.deepEqual(resolveLauncherIdentity(true, "claude-account-failover"), {
+      displayName: "T3 Code Auto (Dev)",
+      bundleId: "com.codepanda.t3code-auto.dev.claudeaccountfailover",
+      protocolSchemes: ["t3code-auto-dev"],
+    });
+  });
+
+  it("uses the fork identity for its bundle and URL scheme", () => {
+    const isDevelopment = Boolean(process.env.VITE_DEV_SERVER_URL);
+    assert.equal(APP_DISPLAY_NAME, isDevelopment ? "T3 Code Auto (Dev)" : "T3 Code Auto");
+    if (isDevelopment) {
+      assert.match(APP_BUNDLE_ID, /^com\.codepanda\.t3code-auto\.dev\.[a-z0-9]+$/);
+      assert.deepEqual(APP_PROTOCOL_SCHEMES, ["t3code-auto-dev"]);
+    } else {
+      assert.equal(APP_BUNDLE_ID, "com.codepanda.t3code-auto");
+      assert.deepEqual(APP_PROTOCOL_SCHEMES, ["t3code-auto"]);
+    }
+  });
+
   it("uses captured values only as fallbacks for a live runner environment", () => {
     const script = makeDevelopmentLauncherScript({
       electronBinaryPath: "/repo/node_modules/electron/Electron",
@@ -52,20 +81,15 @@ describe("electron development launcher", () => {
   });
 
   it("keeps the native Electron executable name inside the branded macOS bundle", () => {
-    const paths = resolveMacLauncherPaths(
-      "/repo/apps/desktop/.electron-runtime/T3 Code (Dev).app",
-      "T3 Code (Dev)",
-    );
+    const appBundlePath = `/repo/apps/desktop/.electron-runtime/${APP_DISPLAY_NAME}.app`;
+    const paths = resolveMacLauncherPaths(appBundlePath, APP_DISPLAY_NAME);
 
-    assert.equal(paths.launcherExecutableName, "T3 Code (Dev) Launcher");
+    assert.equal(paths.launcherExecutableName, `${APP_DISPLAY_NAME} Launcher`);
     assert.equal(
       paths.launcherBinaryPath,
-      "/repo/apps/desktop/.electron-runtime/T3 Code (Dev).app/Contents/MacOS/T3 Code (Dev) Launcher",
+      `${appBundlePath}/Contents/MacOS/${APP_DISPLAY_NAME} Launcher`,
     );
-    assert.equal(
-      paths.runtimeElectronBinaryPath,
-      "/repo/apps/desktop/.electron-runtime/T3 Code (Dev).app/Contents/MacOS/Electron",
-    );
+    assert.equal(paths.runtimeElectronBinaryPath, `${appBundlePath}/Contents/MacOS/Electron`);
 
     const script = makeDevelopmentLauncherScript({
       electronBinaryPath: paths.runtimeElectronBinaryPath,
@@ -73,10 +97,7 @@ describe("electron development launcher", () => {
       desktopRoot: "/repo/apps/desktop",
       environment: {},
     });
-    assert.include(
-      script,
-      "exec '/repo/apps/desktop/.electron-runtime/T3 Code (Dev).app/Contents/MacOS/Electron'",
-    );
+    assert.include(script, `exec '${appBundlePath}/Contents/MacOS/Electron'`);
     assert.notInclude(script, "node_modules/electron");
   });
 

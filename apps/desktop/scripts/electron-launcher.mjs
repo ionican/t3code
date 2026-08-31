@@ -1,4 +1,4 @@
-// This file mostly exists because we want dev mode to say "T3 Code (Dev)" instead of "electron"
+// This file mostly exists because we want dev mode to say "T3 Code Auto (Dev)" instead of "electron"
 
 import * as NodeChildProcess from "node:child_process";
 import * as NodeFS from "node:fs";
@@ -12,14 +12,26 @@ const isDevelopment = Boolean(process.env.VITE_DEV_SERVER_URL);
 const __dirname = NodePath.dirname(NodeURL.fileURLToPath(import.meta.url));
 export const desktopDir = NodePath.resolve(__dirname, "..");
 const repoRoot = NodePath.resolve(desktopDir, "..", "..");
-const devBundleIdSuffix = NodePath.basename(repoRoot)
-  .toLowerCase()
-  .replaceAll(/[^a-z0-9]+/g, "");
-export const APP_DISPLAY_NAME = isDevelopment ? "T3 Code (Dev)" : "T3 Code (Alpha)";
-export const APP_BUNDLE_ID = isDevelopment
-  ? `com.t3tools.t3code.dev.${devBundleIdSuffix || "local"}`
-  : "com.t3tools.t3code";
-const APP_PROTOCOL_SCHEMES = isDevelopment ? ["t3code-dev"] : ["t3code"];
+export function resolveLauncherIdentity(development, repositoryName) {
+  const devBundleIdSuffix = String(repositoryName ?? "")
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]+/g, "");
+  return development
+    ? {
+        displayName: "T3 Code Auto (Dev)",
+        bundleId: `com.codepanda.t3code-auto.dev.${devBundleIdSuffix || "local"}`,
+        protocolSchemes: ["t3code-auto-dev"],
+      }
+    : {
+        displayName: "T3 Code Auto",
+        bundleId: "com.codepanda.t3code-auto",
+        protocolSchemes: ["t3code-auto"],
+      };
+}
+const launcherIdentity = resolveLauncherIdentity(isDevelopment, NodePath.basename(repoRoot));
+export const APP_DISPLAY_NAME = launcherIdentity.displayName;
+export const APP_BUNDLE_ID = launcherIdentity.bundleId;
+export const APP_PROTOCOL_SCHEMES = launcherIdentity.protocolSchemes;
 const LAUNCHER_VERSION = 15;
 const developmentMacIconPngPath = NodePath.join(
   repoRoot,

@@ -3,12 +3,17 @@ import { describe } from "vite-plus/test";
 
 import {
   assetResponseHeaders,
+  DESKTOP_RENDERER_ORIGINS,
   downloadContentDisposition,
   isLoopbackHostname,
   resolveDevRedirectUrl,
 } from "./http.ts";
 
 describe("http dev routing", () => {
+  it("accepts only the fork renderer origins", () => {
+    expect(DESKTOP_RENDERER_ORIGINS).toEqual(["t3code-auto://app", "t3code-auto-dev://app"]);
+  });
+
   it("treats localhost and loopback addresses as local", () => {
     expect(isLoopbackHostname("127.0.0.1")).toBe(true);
     expect(isLoopbackHostname("localhost")).toBe(true);
