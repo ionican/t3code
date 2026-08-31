@@ -811,13 +811,29 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         command,
         threadId: command.threadId,
       });
+      const occurredAt = yield* nowIso;
+      if (command.onlyIfSettled === true) {
+        const sessionComingAlive =
+          thread.session?.status === "starting" || thread.session?.status === "running";
+        if (
+          thread.settledOverride !== "settled" ||
+          sessionComingAlive ||
+          threadHasQueuedTurnStart(thread, occurredAt)
+        ) {
+          return yield* Effect.fail(
+            new OrchestrationCommandInvariantError({
+              commandType: command.type,
+              detail: `thread ${command.threadId} was re-engaged after settle; skipping conditional metadata update`,
+            }),
+          );
+        }
+      }
       const branch =
         command.branch !== undefined &&
         command.expectedBranch !== undefined &&
         thread.branch !== command.expectedBranch
           ? thread.branch
           : command.branch;
-      const occurredAt = yield* nowIso;
       return {
         ...(yield* withEventBase({
           aggregateKind: "thread",
@@ -933,12 +949,13 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         threadId: command.threadId,
       });
       if (command.onlyIfSettled === true) {
+        const guardedAt = yield* nowIso;
         const sessionComingAlive =
           targetThread.session?.status === "starting" || targetThread.session?.status === "running";
         if (
           targetThread.settledOverride !== "settled" ||
           sessionComingAlive ||
-          threadHasQueuedTurnStart(targetThread, command.createdAt)
+          threadHasQueuedTurnStart(targetThread, guardedAt)
         ) {
           return yield* Effect.fail(
             new OrchestrationCommandInvariantError({
@@ -1163,12 +1180,13 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
       // decided serially against this read model, so checking here — not in
       // the dispatcher's pre-settle snapshot — closes that race.
       if (command.onlyIfSettled === true) {
+        const guardedAt = yield* nowIso;
         const sessionComingAlive =
           thread.session?.status === "starting" || thread.session?.status === "running";
         if (
           thread.settledOverride !== "settled" ||
           sessionComingAlive ||
-          threadHasQueuedTurnStart(thread, command.createdAt)
+          threadHasQueuedTurnStart(thread, guardedAt)
         ) {
           return yield* Effect.fail(
             new OrchestrationCommandInvariantError({

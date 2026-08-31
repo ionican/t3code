@@ -12,6 +12,7 @@ import {
 } from "@t3tools/contracts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { expect, it } from "@effect/vitest";
+import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 
 import { decideOrchestrationCommand } from "./decider.ts";
@@ -514,7 +515,7 @@ it.layer(NodeServices.layer)("settled thread decider", (it) => {
 
   it.effect("accepts a conditional turn start only while the thread remains settled", () =>
     Effect.gen(function* () {
-      const turnCommand = (commandId: string, onlyIfSettled = true) =>
+      const turnCommand = (commandId: string, onlyIfSettled = true, createdAt = NOW) =>
         ({
           type: "thread.turn.start",
           commandId: CommandId.make(commandId),
@@ -527,7 +528,7 @@ it.layer(NodeServices.layer)("settled thread decider", (it) => {
           },
           runtimeMode: "full-access",
           interactionMode: "default",
-          createdAt: NOW,
+          createdAt,
           ...(onlyIfSettled ? { onlyIfSettled: true as const } : {}),
         }) as const;
 
@@ -548,17 +549,22 @@ it.layer(NodeServices.layer)("settled thread decider", (it) => {
       }).pipe(Effect.flip);
       expect(reengaged._tag).toBe("OrchestrationCommandInvariantError");
 
+      const serverDateTime = yield* DateTime.now;
+      const serverNow = DateTime.formatIso(serverDateTime);
+      const staleCommandAt = DateTime.formatIso(DateTime.subtract(serverDateTime, { minutes: 10 }));
       const queuedMessage: OrchestrationThread["messages"][number] = {
         id: MessageId.make("newer-user-message"),
         role: "user",
         text: "The user sent newer work",
         turnId: null,
         streaming: false,
-        createdAt: NOW,
-        updatedAt: NOW,
+        createdAt: serverNow,
+        updatedAt: serverNow,
       };
       const queued = yield* decideOrchestrationCommand({
-        command: turnCommand("conditional-queued"),
+        // Retries retain the original command timestamp; queued-work safety
+        // must compare with server time rather than this ten-minute-old value.
+        command: turnCommand("conditional-queued", true, staleCommandAt),
         readModel: makeReadModel("settled", null, makeSession("ready"), [], [queuedMessage]),
       }).pipe(Effect.flip);
       expect(queued._tag).toBe("OrchestrationCommandInvariantError");
@@ -572,6 +578,58 @@ it.layer(NodeServices.layer)("settled thread decider", (it) => {
         "thread.message-sent",
         "thread.turn-start-requested",
       ]);
+    }),
+  );
+
+  it.effect("changes provider metadata conditionally only while the thread remains settled", () =>
+    Effect.gen(function* () {
+      const rebindCommand = (commandId: string, onlyIfSettled = true) =>
+        ({
+          type: "thread.meta.update",
+          commandId: CommandId.make(commandId),
+          threadId: ThreadId.make("thread-1"),
+          modelSelection: {
+            instanceId: ProviderInstanceId.make("claude_gmail"),
+            model: "claude-fable-5",
+          },
+          ...(onlyIfSettled ? { onlyIfSettled: true as const } : {}),
+        }) as const;
+
+      const accepted = yield* decideOrchestrationCommand({
+        command: rebindCommand("conditional-rebind-settled"),
+        readModel: makeReadModel("settled", null, makeSession("ready")),
+      });
+      const acceptedEvents = Array.isArray(accepted) ? accepted : [accepted];
+      expect(acceptedEvents.map((event) => event.type)).toEqual(["thread.meta-updated"]);
+
+      const reengaged = yield* decideOrchestrationCommand({
+        command: rebindCommand("conditional-rebind-running"),
+        readModel: makeReadModel(null, null, makeSession("running")),
+      }).pipe(Effect.flip);
+      expect(reengaged._tag).toBe("OrchestrationCommandInvariantError");
+
+      const queuedAt = acceptedEvents[0]?.occurredAt ?? NOW;
+      const queuedMessage: OrchestrationThread["messages"][number] = {
+        id: MessageId.make("queued-before-rebind"),
+        role: "user",
+        text: "Use my newer request",
+        turnId: null,
+        streaming: false,
+        createdAt: queuedAt,
+        updatedAt: queuedAt,
+      };
+      const queued = yield* decideOrchestrationCommand({
+        command: rebindCommand("conditional-rebind-queued"),
+        readModel: makeReadModel("settled", null, makeSession("ready"), [], [queuedMessage]),
+      }).pipe(Effect.flip);
+      expect(queued._tag).toBe("OrchestrationCommandInvariantError");
+
+      const unconditional = yield* decideOrchestrationCommand({
+        command: rebindCommand("unconditional-rebind", false),
+        readModel: makeReadModel(null, null, makeSession("running")),
+      });
+      const unconditionalEvents = Array.isArray(unconditional) ? unconditional : [unconditional];
+      expect(unconditionalEvents.map((event) => event.type)).toEqual(["thread.meta-updated"]);
     }),
   );
 
@@ -699,12 +757,12 @@ it.layer(NodeServices.layer)("settled thread decider", (it) => {
 
   it.effect("drops an onlyIfSettled session stop when the thread was re-engaged", () =>
     Effect.gen(function* () {
-      const stopCommand = (commandId: string) =>
+      const stopCommand = (commandId: string, createdAt = NOW) =>
         ({
           type: "thread.session.stop",
           commandId: CommandId.make(commandId),
           threadId: ThreadId.make("thread-1"),
-          createdAt: NOW,
+          createdAt,
           onlyIfSettled: true,
         }) as const;
 
@@ -730,6 +788,24 @@ it.layer(NodeServices.layer)("settled thread decider", (it) => {
         readModel: makeReadModel("settled", null, makeSession("starting")),
       }).pipe(Effect.flip);
       expect(aliveError._tag).toBe("OrchestrationCommandInvariantError");
+
+      const serverDateTime = yield* DateTime.now;
+      const serverNow = DateTime.formatIso(serverDateTime);
+      const staleCommandAt = DateTime.formatIso(DateTime.subtract(serverDateTime, { minutes: 10 }));
+      const queuedMessage: OrchestrationThread["messages"][number] = {
+        id: MessageId.make("queued-before-stale-stop"),
+        role: "user",
+        text: "Do not stop this newer request",
+        turnId: null,
+        streaming: false,
+        createdAt: serverNow,
+        updatedAt: serverNow,
+      };
+      const queuedError = yield* decideOrchestrationCommand({
+        command: stopCommand("cmd-stop-stale-with-queued-work", staleCommandAt),
+        readModel: makeReadModel("settled", null, makeSession("ready"), [], [queuedMessage]),
+      }).pipe(Effect.flip);
+      expect(queuedError._tag).toBe("OrchestrationCommandInvariantError");
 
       // Without the flag the stop stays unconditional (archive, stop button).
       const unconditional = yield* decideOrchestrationCommand({

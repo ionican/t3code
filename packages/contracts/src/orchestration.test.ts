@@ -797,6 +797,23 @@ it.effect("accepts a title regeneration intent in thread.meta.update", () =>
     assert.strictEqual(parsed.type, "thread.meta.update");
     if (parsed.type === "thread.meta.update") {
       assert.strictEqual(parsed.regenerateTitle, true);
+      assert.strictEqual(parsed.onlyIfSettled, undefined);
+    }
+  }),
+);
+
+it.effect("accepts a settled guard in thread.meta.update", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodeOrchestrationCommand({
+      type: "thread.meta.update",
+      commandId: "cmd-conditional-rebind",
+      threadId: "thread-1",
+      modelSelection: { instanceId: "claude_gmail", model: "claude-fable-5" },
+      onlyIfSettled: true,
+    });
+    assert.strictEqual(parsed.type, "thread.meta.update");
+    if (parsed.type === "thread.meta.update") {
+      assert.strictEqual(parsed.onlyIfSettled, true);
     }
   }),
 );

@@ -841,6 +841,10 @@ const ThreadMetaUpdateCommand = Schema.Struct({
   expectedBranch: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
   worktreePath: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
   linkedPullRequest: Schema.optional(Schema.NullOr(ThreadLinkedPullRequest)),
+  // Automation can conditionally change thread metadata only while an
+  // earlier settle remains authoritative. The server checks this before it
+  // emits the metadata event.
+  onlyIfSettled: Schema.optional(Schema.Boolean),
 }).check(
   Schema.makeFilter(
     (input) =>
