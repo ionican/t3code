@@ -28,6 +28,8 @@ export interface MakeDesktopEnvironmentInput {
   readonly runningUnderArm64Translation: boolean;
 }
 
+const DEFAULT_BACKEND_PORT = 4_773;
+
 export class DesktopEnvironment extends Context.Service<
   DesktopEnvironment,
   {
@@ -66,6 +68,7 @@ export class DesktopEnvironment extends Context.Service<
     readonly devServerUrl: Option.Option<URL>;
     readonly devRemoteT3ServerEntryPath: Option.Option<string>;
     readonly configuredBackendPort: Option.Option<number>;
+    readonly defaultBackendPort: number;
     readonly commitHashOverride: Option.Option<string>;
     readonly otlpTracesUrl: Option.Option<string>;
     readonly otlpExportIntervalMs: number;
@@ -218,6 +221,7 @@ const make = Effect.fn("desktop.environment.make")(function* (
     devServerUrl,
     devRemoteT3ServerEntryPath: config.devRemoteT3ServerEntryPath,
     configuredBackendPort: config.configuredBackendPort,
+    defaultBackendPort: DEFAULT_BACKEND_PORT,
     commitHashOverride: config.commitHashOverride,
     otlpTracesUrl: config.otlpTracesUrl,
     otlpExportIntervalMs: config.otlpExportIntervalMs,

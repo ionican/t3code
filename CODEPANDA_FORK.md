@@ -13,6 +13,8 @@ quota failover. It stays close to `upstream/main` and carries three changes:
    - backend state: `~/.t3-auto`
    - Electron user data: `~/Library/Application Support/t3code-auto`
    - background service: `com.codepanda.t3code-auto.service`
+   - backend port scan starts at `4773`, leaving the upstream app's usual
+     `3773`/`3774` endpoints untouched
 3. Repository discovery checks for a `.git` marker before starting Git. This
    avoids slow or blocked Git probes in ordinary File Provider-backed folders,
    including iCloud Drive workspaces, while preserving Git verification for
