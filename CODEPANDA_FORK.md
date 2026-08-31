@@ -23,8 +23,13 @@ official T3 Code app and `~/.t3` are not modified.
 Run `scripts/codepanda-update-fork.sh` from a terminal after quitting T3 Code
 Auto. It fetches `upstream/main`, merges into a temporary candidate worktree,
 runs the focused tests and package typechecks, builds an unsigned Apple Silicon
-DMG, verifies the bundle/storage/update invariants, backs up the installed fork
-and its state, then promotes the candidate and installs it. Any conflict,
+DMG, verifies the bundle/storage/update invariants, backs up the installed fork,
+backend state and Electron state, then promotes the candidate and installs it.
+The staged app is ad-hoc signed and must pass strict recursive signature
+verification before the swap. It retains the three newest complete backups and
+reconciles validated staging, previous-app and incomplete-backup remnants from
+an interrupted installation on the next run. A macOS kernel file lock permits
+only one updater process to reach the build and install sequence. Any conflict,
 failed check or identity mismatch stops before the installed app is changed.
 
 The update is intentionally manual: an upstream database migration can make a
