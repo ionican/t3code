@@ -7,7 +7,7 @@ EXPECTED_PRODUCT_NAME="T3 Code Auto"
 EXPECTED_SCHEMES_JSON='["t3code-auto","t3code-auto-dev"]'
 APPLICATIONS_ROOT="/Applications"
 INSTALL_PATH="${APPLICATIONS_ROOT}/T3 Code Auto.app"
-STATE_HOME="${HOME}/.t3-auto"
+STATE_HOME="${HOME}/.t3"
 BACKUP_ROOT="${HOME}/.t3-auto-backups"
 ELECTRON_DATA_ROOT="${HOME}/Library/Application Support"
 LOCK_PATH="${HOME}/.cache/t3-auto-update.lock"
@@ -82,14 +82,62 @@ trap 'exit 143' TERM
 trap 'exit 129' HUP
 
 assert_app_stopped() {
-  if pgrep -f '/T3 Code Auto.app/Contents/MacOS/' >/dev/null 2>&1; then
-    printf 't3-auto-update: quit T3 Code Auto before updating it\n'
-    return 1
-  fi
-  if launchctl print "gui/$(id -u)/com.codepanda.t3code-auto.service" >/dev/null 2>&1; then
-    printf 't3-auto-update: turn off T3 Code Auto access-when-closed before updating it\n'
-    return 1
-  fi
+  local status=0
+
+  /usr/bin/pgrep -f '/T3 Code Auto.app/Contents/MacOS/' >/dev/null 2>&1 || status=$?
+  case "${status}" in
+    0)
+      printf 't3-auto-update: quit T3 Code Auto before updating it\n'
+      return 1
+      ;;
+    1) ;;
+    *)
+      printf 't3-auto-update: could not verify T3 Code Auto process state (pgrep exit %s)\n' "${status}"
+      return 1
+      ;;
+  esac
+
+  status=0
+  /usr/bin/pgrep -f '/T3 Code( \((Alpha|Beta|Nightly)\))?\.app/Contents/MacOS/T3 Code' >/dev/null 2>&1 || status=$?
+  case "${status}" in
+    0)
+      printf 't3-auto-update: quit the upstream T3 Code app before updating shared backend state\n'
+      return 1
+      ;;
+    1) ;;
+    *)
+      printf 't3-auto-update: could not verify upstream T3 Code process state (pgrep exit %s)\n' "${status}"
+      return 1
+      ;;
+  esac
+
+  status=0
+  /bin/launchctl print "gui/$(/usr/bin/id -u)/com.codepanda.t3code-auto.service" >/dev/null 2>&1 || status=$?
+  case "${status}" in
+    0)
+      printf 't3-auto-update: turn off T3 Code Auto access-when-closed before updating it\n'
+      return 1
+      ;;
+    113) ;;
+    *)
+      printf 't3-auto-update: could not verify T3 Code Auto background service state (launchctl exit %s)\n' "${status}"
+      return 1
+      ;;
+  esac
+
+  status=0
+  /bin/launchctl print "gui/$(/usr/bin/id -u)/com.t3tools.t3code.service" >/dev/null 2>&1 || status=$?
+  case "${status}" in
+    0)
+      printf 't3-auto-update: turn off upstream T3 Code access-when-closed before updating shared backend state\n'
+      return 1
+      ;;
+    113) ;;
+    *)
+      printf 't3-auto-update: could not verify upstream T3 Code background service state (launchctl exit %s)\n' "${status}"
+      return 1
+      ;;
+  esac
 }
 
 acquire_update_lock() {
@@ -305,6 +353,7 @@ pnpm exec vp test run \
   apps/desktop/src/app/DesktopAppIdentity.test.ts \
   apps/desktop/src/app/DesktopClerk.test.ts \
   apps/desktop/src/app/DesktopEarlyElectronStartup.test.ts \
+  apps/desktop/src/app/DesktopUpstreamRuntimeGuard.test.ts \
   apps/desktop/src/electron/ElectronProtocol.test.ts \
   apps/desktop/src/updates/DesktopUpdates.test.ts \
   apps/desktop/scripts/electron-launcher.test.mjs \

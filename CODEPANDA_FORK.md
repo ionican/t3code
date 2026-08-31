@@ -1,20 +1,23 @@
 # T3 Code Auto
 
-This branch is a local, co-installable T3 Code fork for two-account Claude
+This branch is a separately installed T3 Code fork for two-account Claude
 quota failover. It stays close to `upstream/main` and carries three changes:
 
 1. `thread.turn.start` accepts `onlyIfSettled`. The server evaluates the guard
    against its authoritative projection before it emits a message or starts a
    turn, so an automated retry cannot replace newer user work.
-2. The desktop app has its own identity and storage:
+2. The desktop app has its own application identity and takes over the existing
+   backend as its sole runtime owner:
    - application: `T3 Code Auto`
    - bundle ID: `com.codepanda.t3code-auto`
    - URL schemes: `t3code-auto` and `t3code-auto-dev`
-   - backend state: `~/.t3-auto`
+   - backend state: `~/.t3` (preserves remote identity, threads and auth)
    - Electron user data: `~/Library/Application Support/t3code-auto`
    - background service: `com.codepanda.t3code-auto.service`
    - backend port scan starts at `4773`, leaving the upstream app's usual
      `3773`/`3774` endpoints untouched
+   - startup and updates refuse to proceed while the upstream T3 Code app or
+     its background service is running
 3. Repository discovery checks for a `.git` marker before starting Git. This
    avoids slow or blocked Git probes in ordinary File Provider-backed folders,
    including iCloud Drive workspaces, while preserving Git verification for
@@ -22,12 +25,14 @@ quota failover. It stays close to `upstream/main` and carries three changes:
 
 Automatic updates are disabled by default. Local builds use a `-pr.` version,
 which also prevents electron-builder from embedding an update feed. The
-official T3 Code app and `~/.t3` are not modified.
+official app remains separately installed, but it and T3 Code Auto must not run
+at the same time because both use `~/.t3` and the same Tailscale Serve URL.
 
 ## Updating from upstream
 
-Run `scripts/codepanda-update-fork.sh` from a terminal after quitting T3 Code
-Auto. It fetches `upstream/main`, merges into a temporary candidate worktree,
+Run `scripts/codepanda-update-fork.sh` from a terminal after quitting both T3
+Code apps and disabling their access-when-closed services. It fetches
+`upstream/main`, merges into a temporary candidate worktree,
 runs the focused tests and package typechecks, builds an unsigned Apple Silicon
 DMG, verifies the bundle/storage/update invariants, backs up the installed fork,
 backend state and Electron state, then promotes the candidate and installs it.
@@ -39,5 +44,6 @@ only one updater process to reach the build and install sequence. Any conflict,
 failed check or identity mismatch stops before the installed app is changed.
 
 The update is intentionally manual: an upstream database migration can make a
-downgrade unsafe, so the command refuses to run while T3 Code Auto is open and
-takes a consistent state backup before installation.
+downgrade unsafe, so the command refuses to run while either T3 Code app or
+background service is active and takes a consistent state backup before
+installation.

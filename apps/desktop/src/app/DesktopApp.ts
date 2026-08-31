@@ -27,6 +27,7 @@ import * as DesktopAppSettings from "../settings/DesktopAppSettings.ts";
 import * as DesktopShellEnvironment from "../shell/DesktopShellEnvironment.ts";
 import * as DesktopState from "./DesktopState.ts";
 import * as DesktopUpdates from "../updates/DesktopUpdates.ts";
+import * as DesktopUpstreamRuntimeGuard from "./DesktopUpstreamRuntimeGuard.ts";
 import * as DesktopWslBackend from "../wsl/DesktopWslBackend.ts";
 
 const MAX_TCP_PORT = 65_535;
@@ -140,6 +141,7 @@ const fatalStartupCause = <E>(stage: string, cause: Cause.Cause<E>) =>
   handleFatalStartupError(stage, Cause.pretty(cause)).pipe(Effect.andThen(Effect.failCause(cause)));
 
 const bootstrap = Effect.gen(function* () {
+  yield* DesktopUpstreamRuntimeGuard.assertUpstreamRuntimeStopped();
   const pool = yield* DesktopBackendPool.DesktopBackendPool;
   const primaryBackend = yield* pool.primary;
   const state = yield* DesktopState.DesktopState;
