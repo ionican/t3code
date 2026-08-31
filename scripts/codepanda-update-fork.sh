@@ -363,7 +363,10 @@ mkdir -p "${BACKUP_DIR}"
 if [[ -d "${STATE_HOME}/userdata" ]]; then
   mkdir -p "${BACKUP_DIR}/userdata"
   if [[ -f "${STATE_HOME}/userdata/state.sqlite" ]]; then
-    sqlite3 -readonly "${STATE_HOME}/userdata/state.sqlite" \
+    # A clean WAL shutdown may remove -wal/-shm. SQLite cannot recreate those
+    # sidecars through -readonly even though VACUUM INTO only reads the source.
+    # The app/service stop guards above make a normal connection safe here.
+    sqlite3 "${STATE_HOME}/userdata/state.sqlite" \
       "VACUUM INTO '${BACKUP_DIR}/userdata/state.sqlite';"
   fi
   rsync -a \
