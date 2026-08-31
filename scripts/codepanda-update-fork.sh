@@ -294,6 +294,9 @@ pnpm exec vp test run \
   packages/contracts/src/orchestration.test.ts \
   apps/server/src/orchestration/decider.settled.test.ts \
   apps/server/src/cloud/bootService.test.ts \
+  apps/server/src/project/RepositoryIdentityResolver.test.ts \
+  apps/server/src/vcs/GitVcsDriver.test.ts \
+  apps/server/src/vcs/VcsDriverRegistry.test.ts \
   apps/desktop/src/app/DesktopEnvironment.test.ts \
   apps/desktop/src/app/DesktopAppIdentity.test.ts \
   apps/desktop/src/app/DesktopClerk.test.ts \

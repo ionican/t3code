@@ -33,6 +33,7 @@ import {
 import { makeGitVcsDriverCore } from "./GitVcsDriverCore.ts";
 import * as VcsDriver from "./VcsDriver.ts";
 import * as VcsProcess from "./VcsProcess.ts";
+import { findGitRepositoryMarker } from "./GitRepositoryMarker.ts";
 
 export interface ExecuteGitInput {
   readonly operation: string;
@@ -465,8 +466,18 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
     ignoreClassifier: "native" as const,
   };
 
-  const isInsideWorkTree: VcsDriver.VcsDriver["Service"]["isInsideWorkTree"] = (cwd) =>
-    gitCommand(
+  const isInsideWorkTree: VcsDriver.VcsDriver["Service"]["isInsideWorkTree"] = Effect.fn(
+    "GitVcsDriver.isInsideWorkTree",
+  )(function* (cwd) {
+    const marker = yield* findGitRepositoryMarker(cwd).pipe(
+      Effect.provideService(FileSystem.FileSystem, fileSystem),
+      Effect.provideService(Path.Path, path),
+    );
+    if (marker === undefined) {
+      return false;
+    }
+
+    const result = yield* gitCommand(
       vcsProcess,
       "GitVcsDriver.isInsideWorkTree",
       cwd,
@@ -476,7 +487,9 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
         timeoutMs: 5_000,
         maxOutputBytes: 4_096,
       },
-    ).pipe(Effect.map((result) => result.exitCode === 0 && result.stdout.trim() === "true"));
+    );
+    return result.exitCode === 0 && result.stdout.trim() === "true";
+  });
 
   const execute: VcsDriver.VcsDriver["Service"]["execute"] = (input) =>
     gitCommand(vcsProcess, input.operation, input.cwd, input.args, {

@@ -8,9 +8,12 @@ import * as Context from "effect/Context";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
+import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
+import * as Path from "effect/Path";
 
 import * as ProcessRunner from "../processRunner.ts";
+import { findGitRepositoryMarker } from "../vcs/GitRepositoryMarker.ts";
 
 const DEFAULT_REPOSITORY_IDENTITY_CACHE_CAPACITY = 512;
 const DEFAULT_POSITIVE_CACHE_TTL = Duration.minutes(1);
@@ -34,7 +37,7 @@ function parseRemoteFetchUrls(stdout: string): Map<string, string> {
   for (const line of stdout.split("\n")) {
     const trimmed = line.trim();
     if (trimmed.length === 0) continue;
-    const match = /^(\S+)\s+(\S+)\s+\((fetch|push)\)$/.exec(trimmed);
+    const match = /^(\S+)\s+(\S+)\s+\((fetch|push)\)(?:\s+\[[^\]]+\])?$/.exec(trimmed);
     if (!match) continue;
     const [, remoteName = "", remoteUrl = "", direction = ""] = match;
     if (direction !== "fetch" || remoteName.length === 0 || remoteUrl.length === 0) {
@@ -87,43 +90,18 @@ function buildRepositoryIdentity(input: {
   };
 }
 
-const resolveRepositoryIdentityCacheKey = Effect.fn("RepositoryIdentityResolver.resolveCacheKey")(
-  function* (cwd: string) {
-    const processRunner = yield* ProcessRunner.ProcessRunner;
-    let cacheKey = cwd;
-
-    // git is a real executable on every platform — no cmd.exe shell mode, which
-    // would split paths containing spaces during cmd's re-tokenization.
-    const topLevelResult = yield* processRunner
-      .run({
-        command: "git",
-        args: ["-C", cwd, "rev-parse", "--show-toplevel"],
-        timeoutBehavior: "timedOutResult",
-      })
-      .pipe(Effect.option);
-    if (topLevelResult._tag === "None" || topLevelResult.value.code !== 0) {
-      return cacheKey;
-    }
-
-    const candidate = topLevelResult.value.stdout.trim();
-    if (candidate.length > 0) {
-      cacheKey = candidate;
-    }
-
-    return cacheKey;
-  },
-);
-
 const resolveRepositoryIdentityFromCacheKey = Effect.fn(
   "RepositoryIdentityResolver.resolveFromCacheKey",
 )(function* (
   cacheKey: string,
-): Effect.fn.Return<RepositoryIdentity | null, never, ProcessRunner.ProcessRunner> {
+): Effect.fn.Return<RepositoryIdentity | null, never, Path.Path | ProcessRunner.ProcessRunner> {
+  const path = yield* Path.Path;
   const processRunner = yield* ProcessRunner.ProcessRunner;
   const remoteResult = yield* processRunner
     .run({
       command: "git",
-      args: ["-C", cacheKey, "remote", "-v"],
+      args: [`--git-dir=${path.join(cacheKey, ".git")}`, `--work-tree=${cacheKey}`, "remote", "-v"],
+      timeout: Duration.seconds(5),
       timeoutBehavior: "timedOutResult",
     })
     .pipe(Effect.option);
@@ -138,11 +116,14 @@ const resolveRepositoryIdentityFromCacheKey = Effect.fn(
 export const make = Effect.fn("RepositoryIdentityResolver.make")(function* (
   options: RepositoryIdentityResolverOptions = {},
 ) {
+  const fileSystem = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
   const processRunner = yield* ProcessRunner.ProcessRunner;
 
   const repositoryIdentityCache = yield* Cache.makeWith<string, RepositoryIdentity | null>(
     (cacheKey) =>
       resolveRepositoryIdentityFromCacheKey(cacheKey).pipe(
+        Effect.provideService(Path.Path, path),
         Effect.provideService(ProcessRunner.ProcessRunner, processRunner),
       ),
     {
@@ -160,10 +141,11 @@ export const make = Effect.fn("RepositoryIdentityResolver.make")(function* (
   const resolve: RepositoryIdentityResolver["Service"]["resolve"] = Effect.fn(
     "RepositoryIdentityResolver.resolve",
   )(function* (cwd) {
-    const cacheKey = yield* resolveRepositoryIdentityCacheKey(cwd).pipe(
-      Effect.provideService(ProcessRunner.ProcessRunner, processRunner),
+    const marker = yield* findGitRepositoryMarker(cwd).pipe(
+      Effect.provideService(FileSystem.FileSystem, fileSystem),
+      Effect.provideService(Path.Path, path),
     );
-    return yield* Cache.get(repositoryIdentityCache, cacheKey);
+    return marker === undefined ? null : yield* Cache.get(repositoryIdentityCache, marker.rootPath);
   });
 
   return RepositoryIdentityResolver.of({ resolve });

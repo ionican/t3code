@@ -1,7 +1,7 @@
 # T3 Code Auto
 
 This branch is a local, co-installable T3 Code fork for two-account Claude
-quota failover. It stays close to `upstream/main` and carries two changes:
+quota failover. It stays close to `upstream/main` and carries three changes:
 
 1. `thread.turn.start` accepts `onlyIfSettled`. The server evaluates the guard
    against its authoritative projection before it emits a message or starts a
@@ -13,6 +13,10 @@ quota failover. It stays close to `upstream/main` and carries two changes:
    - backend state: `~/.t3-auto`
    - Electron user data: `~/Library/Application Support/t3code-auto`
    - background service: `com.codepanda.t3code-auto.service`
+3. Repository discovery checks for a `.git` marker before starting Git. This
+   avoids slow or blocked Git probes in ordinary File Provider-backed folders,
+   including iCloud Drive workspaces, while preserving Git verification for
+   real repositories.
 
 Automatic updates are disabled by default. Local builds use a `-pr.` version,
 which also prevents electron-builder from embedding an update feed. The

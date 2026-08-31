@@ -108,3 +108,37 @@ it.effect("GitVcsDriver forwards execute env to the VCS process", () => {
     ),
   );
 });
+
+it.effect("GitVcsDriver does not start Git for an ordinary folder", () => {
+  let processCalls = 0;
+
+  return Effect.gen(function* () {
+    const fileSystem = yield* FileSystem.FileSystem;
+    const cwd = yield* fileSystem.makeTempDirectoryScoped({
+      prefix: "t3-git-vcs-non-git-preflight-",
+    });
+    const driver = yield* GitVcsDriver.makeVcsDriverShape();
+
+    assert.strictEqual(yield* driver.isInsideWorkTree(cwd), false);
+    assert.strictEqual(processCalls, 0);
+  }).pipe(
+    Effect.provide(
+      Layer.mergeAll(
+        NodeServices.layer,
+        Layer.mock(VcsProcess.VcsProcess)({
+          run: () =>
+            Effect.sync(() => {
+              processCalls += 1;
+              return {
+                exitCode: ChildProcessSpawner.ExitCode(0),
+                stdout: "true\n",
+                stderr: "",
+                stdoutTruncated: false,
+                stderrTruncated: false,
+              };
+            }),
+        }),
+      ),
+    ),
+  );
+});
