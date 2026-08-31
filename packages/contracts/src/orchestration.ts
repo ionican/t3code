@@ -909,6 +909,10 @@ export const ThreadTurnStartCommand = Schema.Struct({
   ),
   bootstrap: Schema.optional(ThreadTurnStartBootstrap),
   sourceProposedPlan: Schema.optional(SourceProposedPlanReference),
+  // Automation may prepare a settled thread and then conditionally submit a
+  // continuation. The decider evaluates this against the authoritative read
+  // model before emitting either the user message or turn-start event.
+  onlyIfSettled: Schema.optional(Schema.Boolean),
   createdAt: IsoDateTime,
 });
 
@@ -928,6 +932,7 @@ const ClientThreadTurnStartCommand = Schema.Struct({
   interactionMode: ProviderInteractionMode,
   bootstrap: Schema.optional(ThreadTurnStartBootstrap),
   sourceProposedPlan: Schema.optional(SourceProposedPlanReference),
+  onlyIfSettled: Schema.optional(Schema.Boolean),
   createdAt: IsoDateTime,
 });
 

@@ -932,6 +932,22 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         command,
         threadId: command.threadId,
       });
+      if (command.onlyIfSettled === true) {
+        const sessionComingAlive =
+          targetThread.session?.status === "starting" || targetThread.session?.status === "running";
+        if (
+          targetThread.settledOverride !== "settled" ||
+          sessionComingAlive ||
+          threadHasQueuedTurnStart(targetThread, command.createdAt)
+        ) {
+          return yield* Effect.fail(
+            new OrchestrationCommandInvariantError({
+              commandType: command.type,
+              detail: `thread ${command.threadId} was re-engaged after settle; skipping conditional turn start`,
+            }),
+          );
+        }
+      }
       const sourceProposedPlan = command.sourceProposedPlan;
       const sourceThread = sourceProposedPlan
         ? yield* requireThread({

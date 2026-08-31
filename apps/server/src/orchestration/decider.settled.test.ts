@@ -512,6 +512,69 @@ it.layer(NodeServices.layer)("settled thread decider", (it) => {
     }),
   );
 
+  it.effect("accepts a conditional turn start only while the thread remains settled", () =>
+    Effect.gen(function* () {
+      const turnCommand = (commandId: string, onlyIfSettled = true) =>
+        ({
+          type: "thread.turn.start",
+          commandId: CommandId.make(commandId),
+          threadId: ThreadId.make("thread-1"),
+          message: {
+            messageId: MessageId.make(`message-${commandId}`),
+            role: "user",
+            text: "Continue on the alternate account",
+            attachments: [],
+          },
+          runtimeMode: "full-access",
+          interactionMode: "default",
+          createdAt: NOW,
+          ...(onlyIfSettled ? { onlyIfSettled: true as const } : {}),
+        }) as const;
+
+      const accepted = yield* decideOrchestrationCommand({
+        command: turnCommand("conditional-settled"),
+        readModel: makeReadModel("settled", null, makeSession("ready")),
+      });
+      const acceptedEvents = Array.isArray(accepted) ? accepted : [accepted];
+      expect(acceptedEvents.map((event) => event.type)).toEqual([
+        "thread.unsettled",
+        "thread.message-sent",
+        "thread.turn-start-requested",
+      ]);
+
+      const reengaged = yield* decideOrchestrationCommand({
+        command: turnCommand("conditional-reengaged"),
+        readModel: makeReadModel(null, null, makeSession("starting")),
+      }).pipe(Effect.flip);
+      expect(reengaged._tag).toBe("OrchestrationCommandInvariantError");
+
+      const queuedMessage: OrchestrationThread["messages"][number] = {
+        id: MessageId.make("newer-user-message"),
+        role: "user",
+        text: "The user sent newer work",
+        turnId: null,
+        streaming: false,
+        createdAt: NOW,
+        updatedAt: NOW,
+      };
+      const queued = yield* decideOrchestrationCommand({
+        command: turnCommand("conditional-queued"),
+        readModel: makeReadModel("settled", null, makeSession("ready"), [], [queuedMessage]),
+      }).pipe(Effect.flip);
+      expect(queued._tag).toBe("OrchestrationCommandInvariantError");
+
+      const unconditional = yield* decideOrchestrationCommand({
+        command: turnCommand("unconditional-reengaged", false),
+        readModel: makeReadModel(null, null, makeSession("starting")),
+      });
+      const unconditionalEvents = Array.isArray(unconditional) ? unconditional : [unconditional];
+      expect(unconditionalEvents.map((event) => event.type)).toEqual([
+        "thread.message-sent",
+        "thread.turn-start-requested",
+      ]);
+    }),
+  );
+
   it.effect("clears a keep-active pin on real activity", () =>
     Effect.gen(function* () {
       const turnResult = yield* decideOrchestrationCommand({

@@ -246,6 +246,7 @@ it.effect("decodes thread.turn.start defaults for provider and runtime mode", ()
     assert.strictEqual(parsed.modelSelection, undefined);
     assert.strictEqual(parsed.runtimeMode, DEFAULT_RUNTIME_MODE);
     assert.strictEqual(parsed.interactionMode, DEFAULT_PROVIDER_INTERACTION_MODE);
+    assert.strictEqual(parsed.onlyIfSettled, undefined);
   }),
 );
 
@@ -390,11 +391,13 @@ it.effect("preserves explicit provider and runtime mode in thread.turn.start", (
         model: "gpt-5.4",
       },
       runtimeMode: "full-access",
+      onlyIfSettled: true,
       createdAt: "2026-01-01T00:00:00.000Z",
     });
     assert.strictEqual(parsed.modelSelection?.instanceId, "codex");
     assert.strictEqual(parsed.runtimeMode, "full-access");
     assert.strictEqual(parsed.interactionMode, DEFAULT_PROVIDER_INTERACTION_MODE);
+    assert.strictEqual(parsed.onlyIfSettled, true);
   }),
 );
 
