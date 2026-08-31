@@ -68,8 +68,11 @@ describe("DesktopEnvironment", () => {
       assert.equal(environment.serverRoot, "/repo");
       assert.equal(environment.backendEntryPath, "/repo/apps/server/dist/bin.mjs");
       assert.equal(environment.backendCwd, "/repo");
-      assert.equal(environment.appUserModelId, "com.t3tools.t3code.dev");
-      assert.equal(environment.linuxWmClass, "t3code-dev");
+      assert.equal(environment.displayName, "T3 Code Auto");
+      assert.equal(environment.appUserModelId, "com.codepanda.t3code-auto.dev");
+      assert.equal(environment.linuxWmClass, "t3code-auto-dev");
+      assert.equal(environment.userDataDirName, "t3code-auto-dev");
+      assert.equal(environment.legacyUserDataDirName, "T3 Code Auto (Dev)");
       assert.deepEqual(
         Option.map(environment.devServerUrl, (url) => url.href),
         Option.some("http://localhost:5173/"),
@@ -96,6 +99,8 @@ describe("DesktopEnvironment", () => {
       assert.equal(environment.logDir, "/tmp/t3/userdata/logs");
       assert.equal(environment.browserArtifactsDir, "/tmp/t3/userdata/browser-artifacts");
       assert.equal(environment.serverSettingsPath, "/tmp/t3/userdata/settings.json");
+      assert.equal(environment.userDataDirName, "t3code-auto");
+      assert.equal(environment.legacyUserDataDirName, "T3 Code Auto (Alpha)");
     }),
   );
 
@@ -125,8 +130,8 @@ describe("DesktopEnvironment", () => {
       );
       const production = yield* makeEnvironment();
 
-      assert.equal(development.stateDir, "/Users/alice/.t3/dev");
-      assert.equal(production.stateDir, "/Users/alice/.t3/userdata");
+      assert.equal(development.stateDir, "/Users/alice/.t3-auto/dev");
+      assert.equal(production.stateDir, "/Users/alice/.t3-auto/userdata");
     }),
   );
 

@@ -146,6 +146,7 @@ function makeHarness(options: UpdatesHarnessOptions = {}) {
         NodeServices.layer,
         DesktopConfig.layerTest({
           T3CODE_HOME: `/tmp/t3-desktop-updates-test-${process.pid}`,
+          T3CODE_DISABLE_AUTO_UPDATE: "false",
           T3CODE_DESKTOP_MOCK_UPDATES: "true",
           T3CODE_DESKTOP_MOCK_UPDATE_SERVER_PORT: "4141",
           ...options.env,
@@ -199,6 +200,7 @@ function makeHarness(options: UpdatesHarnessOptions = {}) {
     Layer.provideMerge(
       DesktopConfig.layerTest({
         T3CODE_HOME: `/tmp/t3-desktop-updates-test-${process.pid}`,
+        T3CODE_DISABLE_AUTO_UPDATE: "false",
         T3CODE_DESKTOP_MOCK_UPDATES: "true",
         T3CODE_DESKTOP_MOCK_UPDATE_SERVER_PORT: "4141",
         ...options.env,
@@ -228,6 +230,31 @@ function makeHarness(options: UpdatesHarnessOptions = {}) {
 }
 
 describe("DesktopUpdates", () => {
+  it.effect("keeps automatic updates disabled by default in the fork", () => {
+    const harness = makeHarness({
+      env: { T3CODE_DISABLE_AUTO_UPDATE: undefined },
+    });
+
+    return Effect.scoped(
+      Effect.gen(function* () {
+        const updates = yield* DesktopUpdates.DesktopUpdates;
+        yield* updates.configure;
+
+        const state = yield* updates.getState;
+        const disabledReason = yield* updates.disabledReason;
+        const check = yield* updates.check("manual");
+        assert.equal(state.enabled, false);
+        assert.deepEqual(
+          disabledReason,
+          Option.some("Automatic updates are disabled by the T3CODE_DISABLE_AUTO_UPDATE setting."),
+        );
+        assert.equal(check.checked, false);
+        assert.equal(harness.checkCount(), 0);
+        assert.equal(harness.listenerCount(), 0);
+      }),
+    ).pipe(Effect.provide(Layer.merge(TestClock.layer(), harness.layer)));
+  });
+
   it("preserves complete causes for update poller and event failures", () => {
     const cause = Cause.combine(
       Cause.fail(new Error("updater failed")),

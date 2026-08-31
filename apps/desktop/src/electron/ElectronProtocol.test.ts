@@ -23,6 +23,12 @@ describe("ElectronProtocol", () => {
     unhandleMock.mockReset();
   });
 
+  it("uses URL schemes that do not compete with the official app", () => {
+    assert.equal(ElectronProtocol.getDesktopScheme(false), "t3code-auto");
+    assert.equal(ElectronProtocol.getDesktopScheme(true), "t3code-auto-dev");
+    assert.equal(ElectronProtocol.getDesktopOrigin(false), "t3code-auto://app");
+  });
+
   it.effect("proxies the stable renderer origin to the current app server", () =>
     Effect.gen(function* () {
       let handler: ((request: Request) => Promise<Response>) | undefined;
